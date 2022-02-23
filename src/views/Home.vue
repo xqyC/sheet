@@ -1,130 +1,208 @@
 <template>
-  <div class="home">
-    <div class="app-body">
-      <LeftMenu :isCollapse="isCollapse" @checkItem="checkItem"></LeftMenu>
-      <HeaderMenu
-        :isCollapse="isCollapse"
-        :breadList="breadList"
-        @collapseMenu="collapseMenu"
-        @refreshPage="refreshPage"
-      ></HeaderMenu>
-      <!-- <HistoryPage></HistoryPage> -->
-      <div class="page-wrapper">
-        <router-view v-if="isRouterAlive"></router-view>
-      </div>
+    <div class="login">
+        <div class="login-wrapper">
+            <div class="login-log-wrapper" :style="{ background: colorStyle }">
+                <div class="time">{{ time }}</div>
+                <div class="login-log">
+                    <img class="img" src="https://avuejs.com/images/logo.png" alt=""/>
+                    <p class="title">通用后台管理模板</p>
+                </div>
+            </div>
+            <div class="box-card">
+                <div class="login-title">登录 Admin</div>
+                <el-form
+                    class="form-card"
+                    ref="formRef"
+                    :model="form"
+                    :rules="rules"
+                    label-width="80px"
+                >
+                    <el-form-item label="账号" prop="user">
+                        <el-input v-model="form.user"></el-input>
+                    </el-form-item>
+                    <el-form-item label="密码" prop="password">
+                        <el-input type="password" v-model="form.password"></el-input>
+                    </el-form-item>
+                    <div class="btn-center">
+                        <el-button type="primary" @click="loginIn">登录</el-button>
+                    </div>
+                </el-form>
+            </div>
+        </div>
     </div>
-  </div>
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, nextTick } from 'vue'
-import LeftMenu from '@/components/LeftMenu.vue'
-import HeaderMenu from '../components/HeaderMenu.vue'
-// import HistoryPage from '../components/HistoryPage.vue'
-// 面包屑相关
-const breadEvent = () => {
-  const breadList = ref([])
-  const checkItem = (arr) => {
-    breadList.value = arr
-  }
-  return { breadList, checkItem }
+import {computed, defineComponent, reactive, ref, onUnmounted} from 'vue'
+import {useRouter} from 'vue-router'
+import {useStore} from 'vuex'
+import {dateFormat} from '../util/date'
+
+export interface User {
+    user: string;
+    password: string;
 }
-// 刷新相关
-const refreshEvent = () => {
-  const isRouterAlive = ref(true)
-  const refreshPage = async () => {
-    isRouterAlive.value = false
-    await nextTick()
-    isRouterAlive.value = true
-  }
-  return { isRouterAlive, refreshPage }
+
+export interface Valid {
+    required?: boolean;
+    validator?: (rule, value, callback) => void;
+    message?: string;
+    trigger: string;
 }
-// 展开收起相关
-const collapseEvent = () => {
-  const isCollapse = ref(false)
-  const collapseMenu = () => {
-    isCollapse.value = !isCollapse.value
-  }
-  return { isCollapse, collapseMenu }
+
+export interface Rule {
+    user: Valid[];
+    password: Valid[];
+}
+
+// 账号密码验证码定义
+const loginPassEvent = (store) => {
+    const router = useRouter()
+    const formRef = ref<null | HTMLElement>(null)
+    const form = reactive<User>({
+        user: '',
+        password: ''
+    })
+    const rules = reactive<Rule>({
+        user: [{required: true, message: '请输入账号', trigger: 'blur'}],
+        password: [{required: true, message: '请输入密码', trigger: 'blur'}]
+    })
+    const loginIn = () => {
+        (formRef.value as any).validate((valid) => {
+            if (!valid) {
+                return
+            }
+            // 验证完成，发送登录请求，获取token
+            store.commit('base/SET_TOKEN', 'tokenVal')
+            store.dispatch('base/getMenu').then(() => {
+                router.push('/')
+            })
+        })
+    }
+    return {form, rules, loginIn, formRef}
+}
+//   获取主题色
+const colorEvent = (store) => {
+    const color = computed(() => {
+        return store.getters['base/colorStyle']
+    })
+    const colorStyle = ref(color.value)
+    return {colorStyle}
+}
+// 时间相关
+const timeEvent = () => {
+    const time = ref('')
+    const getTime = () => {
+        time.value = dateFormat(new Date())
+    }
+    getTime()
+    // 定时调用时间
+    const timer = setInterval(() => {
+        getTime()
+    }, 1000)
+    // 页面销毁时，清除定时器
+    onUnmounted(() => {
+        clearInterval(timer)
+    })
+    return {time}
 }
 export default defineComponent({
-  name: 'Home',
-  setup() {
-    const { breadList, checkItem } = breadEvent()
-    const { isRouterAlive, refreshPage } = refreshEvent()
-    const { isCollapse, collapseMenu } = collapseEvent()
-    return {
-      isRouterAlive,
-      refreshPage,
-      breadList,
-      checkItem,
-      isCollapse,
-      collapseMenu,
+    setup() {
+        const store = useStore()
+        const {form, rules, loginIn, formRef} = loginPassEvent(
+            store
+        )
+        const {colorStyle} = colorEvent(store)
+        const {time} = timeEvent()
+        return {
+            form,
+            rules,
+            formRef,
+            loginIn,
+            colorStyle,
+            time
+        }
     }
-  },
-  components: {
-    LeftMenu,
-    HeaderMenu,
-    // HistoryPage,
-  },
 })
 </script>
 <style lang="scss">
-.home {
-  display: flex;
-  width: 100%;
-  height: 100%;
+.login {
+    width: 100%;
+    height: 100%;
+    background: url('../assets/cloud.jpg') 0 bottom repeat-x #049ec4;
+    animation: animate-cloud 20s linear infinite;
 
-  .app-body {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-
-    .bread-tool {
-      display: flex;
-      align-items: center;
-      height: 64px;
-      box-shadow: 0 1px 4px rgba(0, 21, 41, 0.08);
-      padding: 0 24px;
-
-      .icon-size {
-        font-size: 18px;
-        color: #515a6e;
-        margin-right: 24px;
-        cursor: pointer;
-      }
-
-      .bread-wrapper {
-        flex: 1;
+    .login-wrapper {
         display: flex;
-        align-items: center;
-      }
+        width: 80%;
+        height: 500px;
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
 
-      .tool-wrapper {
-        display: flex;
-        align-items: center;
-        .el-dropdown-link {
-          span {
-            vertical-align: middle;
-            cursor: pointer;
-          }
-          .user-name {
-            margin-left: 12px;
-          }
-        }
-        .more {
-          transform: rotate(90deg);
-          margin-left: 24px;
-          cursor: pointer;
-        }
-      }
-    }
+        .login-log-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 25px;
+            color: #fff;
 
-    .page-wrapper {
-      flex: 1;
-      padding: 20px;
-      background: #fff;
+            .login-log {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+
+                .img {
+                    width: 140px;
+                }
+
+                .title {
+                    margin-top: 60px;
+                    text-align: center;
+                    color: #fff;
+                    font-weight: 300;
+                    letter-spacing: 2px;
+                    font-size: 25px;
+                }
+            }
+        }
+
+        .box-card {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: #fff;
+
+            .login-title {
+                font-size: 32px;
+                line-height: 100px;
+                color: #606266;
+            }
+
+            .form-card {
+                width: 90%;
+
+                .title {
+                    font-weight: 700;
+                    font-size: 24px;
+                    color: #2c3e50;
+                }
+
+                .code-wrapper {
+                    display: flex;
+
+                    .code-input {
+                        flex: 1;
+                        margin-right: 15px;
+                    }
+                }
+            }
+        }
     }
-  }
 }
 </style>
